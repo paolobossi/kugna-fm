@@ -49,6 +49,12 @@
   .station.unavailable .desc{color:#6b5a5a}
   .meta{flex:1; min-width:0}
   .name{font-size:15px; font-weight:600; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .tag{
+    display:inline-block; vertical-align:middle; margin-left:6px;
+    font-size:10px; font-weight:700; letter-spacing:.03em; line-height:1;
+    padding:3px 6px; border-radius:6px;
+    background:rgba(96,165,250,.16); color:#93c5fd; border:1px solid rgba(96,165,250,.4);
+  }
   .desc{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .bars{display:flex; align-items:flex-end; gap:2px; height:18px; width:18px; flex:none; opacity:0}
   .station.active .bars{opacity:1}
@@ -165,8 +171,8 @@ const STATIONS = [
   { id:"lifegate", name:"LifeGate Radio", desc:"Lombardy — 105.3 FM", emoji:"LG",
     url:"http://onair15.xdevel.com:8254/", type:"native",
     img:"https://cdn-profiles.tunein.com/s8868/images/logoq.jpg" },
-  { id:"smoothgrooving", name:"Smooth Grooving FM", desc:"Geo-restricted — stream unavailable", emoji:"SG",
-    url:"", type:"unavailable",
+  { id:"smoothgrooving", name:"Smooth Grooving FM", desc:"Soft Soul, Smooth Jazz 24/7 from London", emoji:"SG",
+    url:"https://sgr.lucasmultimedia.com/stream.mp3", type:"native", tag:"UK Only",
     img:"https://cdn-radiotime-logos.tunein.com/s137889q.png" },
 ];
 
@@ -200,7 +206,7 @@ STATIONS.forEach(st => {
   el.innerHTML = `
     <div class="thumb"><span>${st.emoji}</span>${st.img ? `<img src="${st.img}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
     <div class="meta">
-      <div class="name">${st.name}</div>
+      <div class="name">${st.name}${st.tag ? ` <span class="tag">${st.tag}</span>` : ''}</div>
       <div class="desc">${st.desc}</div>
     </div>
     <div class="bars"><span></span><span></span><span></span></div>`;
