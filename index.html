@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kugna FM</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<style>
+  :root{
+    --bg:#0d0f14; --panel:#161a23; --panel-2:#1e2430;
+    --text:#e8ecf2; --muted:#8a93a6; --accent:#4ade80; --accent-2:#22c55e;
+    --border:#242b38;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%, #1b2130 0%, var(--bg) 60%);
+    color:var(--text); min-height:100vh; display:flex; justify-content:center;
+    padding:32px 16px 140px;
+  }
+  .app{width:100%; max-width:520px}
+  header{display:flex; align-items:center; gap:12px; margin-bottom:28px}
+  .logo{
+    width:40px; height:40px; border-radius:12px; flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid; place-items:center; color:#06210f; font-size:22px;
+  }
+  h1{font-size:20px; font-weight:650; letter-spacing:-.02em}
+  .sub{font-size:13px; color:var(--muted)}
+
+  .stations{display:flex; flex-direction:column; gap:10px}
+  .station{
+    display:flex; align-items:center; gap:14px; padding:14px 16px;
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    cursor:pointer; transition:.15s border-color,.15s background,.15s transform;
+    text-align:left; color:var(--text); font:inherit;
+  }
+  .station:hover{background:var(--panel-2); border-color:#33405a}
+  .station:active{transform:scale(.99)}
+  .station.active{border-color:var(--accent); background:var(--panel-2)}
+  .thumb{
+    width:46px; height:46px; border-radius:12px; flex:none; position:relative; overflow:hidden;
+    display:grid; place-items:center; font-size:16px; font-weight:700;
+    background:linear-gradient(135deg,#2a3242,#1a1f2b); color:var(--accent);
+  }
+  .thumb img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#0d0f14}
+  .station.active .thumb{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#06210f}
+  .station.unavailable{opacity:.5}
+  .station.unavailable .desc{color:#6b5a5a}
+  .meta{flex:1; min-width:0}
+  .name{font-size:15px; font-weight:600; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .desc{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .bars{display:flex; align-items:flex-end; gap:2px; height:18px; width:18px; flex:none; opacity:0}
+  .station.active .bars{opacity:1}
+  .bars span{width:3px; background:var(--accent); border-radius:2px; height:30%}
+  .playing .bars span{animation:eq .9s ease-in-out infinite}
+  .bars span:nth-child(2){animation-delay:.2s} .bars span:nth-child(3){animation-delay:.4s}
+  @keyframes eq{0%,100%{height:25%}50%{height:100%}}
+
+  /* Player bar */
+  .player{
+    position:fixed; left:0; right:0; bottom:0;
+    background:rgba(18,22,30,.85); backdrop-filter:blur(16px);
+    border-top:1px solid var(--border); padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    display:flex; justify-content:center;
+  }
+  .player-inner{width:100%; max-width:520px; display:flex; align-items:center; gap:14px}
+  .np-cover{
+    width:40px; height:40px; border-radius:9px; flex:none; background:#242b38;
+    background-size:cover; background-position:center; display:none;
+  }
+  .np-cover.show{display:block}
+  .np{flex:1; min-width:0}
+  .np .name{font-size:14px}
+  .np .status{font-size:12px; color:var(--muted)}
+  .np .status.live{color:var(--accent)}
+  .play-btn{
+    width:52px; height:52px; border-radius:50%; border:none; flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#06210f;
+    font-size:20px; cursor:pointer; display:grid; place-items:center;
+    transition:.15s transform; box-shadow:0 6px 20px rgba(74,222,128,.25);
+  }
+  .play-btn:hover{transform:scale(1.06)} .play-btn:active{transform:scale(.96)}
+  .play-btn:disabled{opacity:.4; cursor:default; transform:none; box-shadow:none}
+  .vol{display:flex; align-items:center; gap:8px; width:110px}
+  .vol svg{flex:none; color:var(--muted)}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:4px;
+    background:var(--border); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--text); cursor:pointer;
+  }
+  @media (max-width:440px){.vol{display:none}}
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">📻</div>
+      <div>
+        <h1>Kugna FM</h1>
+        <div class="sub">Paolo's stations</div>
+      </div>
+    </header>
+    <div class="stations" id="stations"></div>
+  </div>
+
+  <div class="player" id="player">
+    <div class="player-inner">
+      <button class="play-btn" id="playBtn" disabled>▶</button>
+      <div class="np-cover" id="npCover"></div>
+      <div class="np">
+        <div class="name" id="npName">Pick a station</div>
+        <div class="status" id="npStatus">Nothing playing</div>
+      </div>
+      <div class="vol">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4z"/></svg>
+        <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8">
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio"></audio>
+
+<script>
+const STATIONS = [
+  { id:"radio24", name:"Radio 24", desc:"News & talk — Il Sole 24 Ore", emoji:"24",
+    url:"http://shoutcast.radio24.ilsole24ore.com:8000/;", type:"native",
+    img:"https://cdn-profiles.tunein.com/s26090/images/logoq.png" },
+  { id:"deejay", name:"Radio Deejay", desc:"Deejay 4 Italy", emoji:"DJ",
+    url:"https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiodeejay/radiodeejay/master_ma.m3u8", type:"hls",
+    img:"https://cdn-profiles.tunein.com/s1216/images/logoq.png" },
+  { id:"smoothjazz247", name:"Smooth Jazz 24/7", desc:"Smooth jazz around the clock", emoji:"SJ",
+    url:"https://jking.cdnstream1.com/b75154_128mp3", type:"native",
+    img:"https://cdn-profiles.tunein.com/s297918/images/logoq.jpg" },
+  { id:"smoothjazzfl", name:"Smooth Jazz Florida", desc:"Smooth jazz from Florida", emoji:"FL",
+    url:"https://server.webnetradio.net/proxy/wsjf?mp=/1", type:"native",
+    img:"https://cdn-radiotime-logos.tunein.com/s206902q.png" },
+  { id:"smoothjazzpl", name:"SmoothJazz.com.pl", desc:"The European home of smooth jazz", emoji:"PL",
+    url:"http://bcast.vigormultimedia.com:8888/sjcompl64aac", type:"native",
+    img:"https://cdn-profiles.tunein.com/s106565/images/logoq.jpg" },
+  { id:"bluemarlin", name:"Blue Marlin Ibiza Radio", desc:"The Blue Marlin Ibiza experience 24/7", emoji:"BM",
+    url:"https://stream.radiojar.com/u7gk5agata3vv", type:"native",
+    img:"https://cdn-profiles.tunein.com/s140897/images/logoq.jpg" },
+  { id:"nts1", name:"NTS Radio 1", desc:"Live radio from the world's best DJs", emoji:"N1",
+    url:"https://stream-relay-geo.ntslive.net/stream", type:"native",
+    img:"https://cdn-profiles.tunein.com/s150238/images/logoq.jpg" },
+  { id:"nts2", name:"NTS Radio 2", desc:"Live radio from the world's best DJs", emoji:"N2",
+    url:"https://stream-relay-geo.ntslive.net/stream2", type:"native",
+    img:"https://cdn-profiles.tunein.com/s286827/images/logoq.jpg" },
+  { id:"ntspoolside", name:"NTS Poolside", desc:"Balearic, boogie & sophisti-pop", emoji:"NP",
+    url:"https://stream-mixtape-geo.ntslive.net/mixtape4", type:"native",
+    img:"https://cdn-profiles.tunein.com/s309373/images/logoq.jpg" },
+  { id:"ibizasonica", name:"Ibiza Sonica Radio", desc:"Cultura de radio — 92.4 Ibiza", emoji:"IS",
+    url:"https://ibizasonica.streaming-pro.com:8000/ibizasonica", type:"native",
+    img:"https://cdn-radiotime-logos.tunein.com/s78109q.png" },
+  { id:"somaagent", name:"SomaFM: Secret Agent", desc:"Soundtrack for your mysterious life", emoji:"SA",
+    url:"https://ice1.somafm.com/secretagent-128-mp3", type:"native",
+    img:"https://cdn-profiles.tunein.com/s2593/images/logoq.jpg" },
+  { id:"somagroove", name:"SomaFM: Groove Salad", desc:"Ambient / downtempo beats & grooves", emoji:"GS",
+    url:"https://ice1.somafm.com/groovesalad-128-mp3", type:"native",
+    img:"https://cdn-profiles.tunein.com/s2591/images/logoq.png" },
+  { id:"lifegate", name:"LifeGate Radio", desc:"Lombardy — 105.3 FM", emoji:"LG",
+    url:"http://onair15.xdevel.com:8254/", type:"native",
+    img:"https://cdn-profiles.tunein.com/s8868/images/logoq.jpg" },
+  { id:"smoothgrooving", name:"Smooth Grooving FM", desc:"Geo-restricted — stream unavailable", emoji:"SG",
+    url:"", type:"unavailable",
+    img:"https://cdn-radiotime-logos.tunein.com/s137889q.png" },
+];
+
+const audio = document.getElementById('audio');
+const stationsEl = document.getElementById('stations');
+const playBtn = document.getElementById('playBtn');
+const npName = document.getElementById('npName');
+const npStatus = document.getElementById('npStatus');
+const npCover = document.getElementById('npCover');
+const volEl = document.getElementById('vol');
+
+function setNpCover(st){
+  if (st && st.img){
+    npCover.style.backgroundImage = `url("${st.img}")`;
+    npCover.classList.add('show');
+  } else {
+    npCover.classList.remove('show');
+  }
+}
+
+let current = null;   // station object
+let hls = null;
+
+// Build station list
+STATIONS.forEach(st => {
+  const el = document.createElement('button');
+  el.className = 'station';
+  el.dataset.id = st.id;
+  if (st.type === 'unavailable') el.classList.add('unavailable');
+  el.innerHTML = `
+    <div class="thumb"><span>${st.emoji}</span>${st.img ? `<img src="${st.img}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    <div class="meta">
+      <div class="name">${st.name}</div>
+      <div class="desc">${st.desc}</div>
+    </div>
+    <div class="bars"><span></span><span></span><span></span></div>`;
+  el.addEventListener('click', () => selectStation(st));
+  stationsEl.appendChild(el);
+});
+
+function setStatus(text, live){
+  npStatus.textContent = text;
+  npStatus.classList.toggle('live', !!live);
+}
+
+function refreshActive(){
+  document.querySelectorAll('.station').forEach(el => {
+    const on = current && el.dataset.id === current.id;
+    el.classList.toggle('active', on);
+    el.classList.toggle('playing', on && !audio.paused);
+  });
+}
+
+function loadStream(st){
+  // tear down previous hls instance
+  if (hls){ hls.destroy(); hls = null; }
+  if (st.type === 'hls'){
+    if (window.Hls && Hls.isSupported()){
+      hls = new Hls();
+      hls.loadSource(st.url);
+      hls.attachMedia(audio);
+    } else {
+      // Safari plays HLS natively
+      audio.src = st.url;
+    }
+  } else {
+    audio.src = st.url;
+  }
+}
+
+function selectStation(st){
+  if (st.type === 'unavailable'){
+    current = st;
+    npName.textContent = st.name;
+    setNpCover(st);
+    setStatus('Geo-restricted — unavailable');
+    playBtn.disabled = true;
+    audio.pause();
+    refreshActive();
+    return;
+  }
+  if (current && current.id === st.id){
+    // toggle play/pause on the same station
+    if (audio.paused) audio.play(); else audio.pause();
+    return;
+  }
+  current = st;
+  npName.textContent = st.name;
+  setNpCover(st);
+  setStatus('Connecting…');
+  loadStream(st);
+  audio.play().catch(()=>{});
+  playBtn.disabled = false;
+  refreshActive();
+  localStorage.setItem('radio.last', st.id);
+}
+
+playBtn.addEventListener('click', () => {
+  if (!current) return;
+  if (audio.paused) audio.play(); else audio.pause();
+});
+
+audio.addEventListener('playing', () => { playBtn.textContent='❚❚'; setStatus('● Live', true); refreshActive(); });
+audio.addEventListener('pause',   () => { playBtn.textContent='▶'; setStatus('Paused'); refreshActive(); });
+audio.addEventListener('waiting', () => setStatus('Buffering…'));
+audio.addEventListener('error',   () => { if(current) setStatus('Stream unavailable'); });
+
+// Volume (restored from storage)
+const savedVol = parseFloat(localStorage.getItem('radio.vol'));
+audio.volume = isNaN(savedVol) ? 0.8 : savedVol;
+volEl.value = audio.volume;
+volEl.addEventListener('input', () => {
+  audio.volume = parseFloat(volEl.value);
+  localStorage.setItem('radio.vol', volEl.value);
+});
+
+// Restore last station (loaded but not auto-played — browsers block autoplay)
+const lastId = localStorage.getItem('radio.last');
+const last = STATIONS.find(s => s.id === lastId);
+if (last){
+  current = last;
+  npName.textContent = last.name;
+  setNpCover(last);
+  if (last.type === 'unavailable'){
+    setStatus('Geo-restricted — unavailable');
+    playBtn.disabled = true;
+  } else {
+    setStatus('Tap play to listen');
+    playBtn.disabled = false;
+  }
+  refreshActive();
+}
+</script>
+</body>
+</html>
