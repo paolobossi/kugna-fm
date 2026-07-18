@@ -226,15 +226,21 @@ function loadStream(st){
   if (st.type === 'hls'){
     if (window.Hls && Hls.isSupported()){
       hls = new Hls();
-      // Recommended order: attach media first, then load source once attached.
+      // Attach media first, load source once attached, and only start playback
+      // after the manifest is parsed — calling play() earlier races with MSE
+      // attachment and can stall the stream.
       hls.attachMedia(audio);
       hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(st.url));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(()=>{}));
+      hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) setStatus('Stream unavailable'); });
     } else {
       // Safari plays HLS natively
       audio.src = st.url;
+      audio.play().catch(()=>{});
     }
   } else {
     audio.src = st.url;
+    audio.play().catch(()=>{});
   }
 }
 
@@ -258,8 +264,7 @@ function selectStation(st){
   npName.textContent = st.name;
   setNpCover(st);
   setStatus('Connecting…');
-  loadStream(st);
-  audio.play().catch(()=>{});
+  loadStream(st);  // starts playback itself, at the right moment per stream type
   playBtn.disabled = false;
   refreshActive();
   localStorage.setItem('radio.last', st.id);
