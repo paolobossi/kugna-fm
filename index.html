@@ -16,7 +16,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
     background:radial-gradient(1200px 600px at 50% -10%, #1b2130 0%, var(--bg) 60%);
     color:var(--text); min-height:100vh; display:flex; justify-content:center;
-    padding:32px 16px 140px;
+    padding:32px 16px 200px;
   }
   .app{width:100%; max-width:520px}
   header{display:flex; align-items:center; gap:12px; margin-bottom:28px}
@@ -64,12 +64,25 @@
   @keyframes eq{0%,100%{height:25%}50%{height:100%}}
 
   /* Player bar */
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:50}
   .player{
-    position:fixed; left:0; right:0; bottom:0;
     background:rgba(18,22,30,.85); backdrop-filter:blur(16px);
-    border-top:1px solid var(--border); padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--border); padding:12px 16px;
     display:flex; flex-direction:column; align-items:center; gap:8px;
   }
+  .bottomnav{
+    display:flex; background:rgba(13,15,20,.92); backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  }
+  .navitem{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    background:none; border:none; color:var(--muted); font:inherit; font-size:11px; font-weight:600;
+    cursor:pointer; padding:5px 4px; border-radius:10px; transition:.15s;
+  }
+  .navitem.active{color:var(--accent)}
+  .navitem:hover:not(.active){color:var(--text)}
+  .navitem svg{width:23px; height:23px}
   .player-inner{width:100%; max-width:520px; display:flex; align-items:center; gap:14px}
   .seek{width:100%; max-width:520px; display:flex; align-items:center; gap:10px}
   .seek[hidden]{display:none}
@@ -117,7 +130,26 @@
   .tab.active{background:var(--panel-2); color:#fff}
   .tab:hover:not(.active){color:var(--text)}
 
-  /* Podcast view */
+  /* Podcast list */
+  #podcastList{display:flex; flex-direction:column; gap:10px}
+  #podcastList[hidden]{display:none}
+  .podcard{
+    display:flex; align-items:center; gap:14px; padding:14px 16px; width:100%;
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    cursor:pointer; transition:.15s border-color,.15s background,.15s transform;
+    text-align:left; color:var(--text); font:inherit;
+  }
+  .podcard:hover{background:var(--panel-2); border-color:#33405a}
+  .podcard:active{transform:scale(.99)}
+  .podcard .chev{color:var(--muted); font-size:24px; line-height:1; flex:none}
+  .podback{
+    display:inline-flex; align-items:center; gap:6px; margin-bottom:18px;
+    background:none; border:none; color:var(--muted); font:inherit; font-size:14px; font-weight:600;
+    cursor:pointer; padding:2px 0;
+  }
+  .podback:hover{color:var(--text)}
+
+  /* Podcast detail */
   .pod-head{display:flex; gap:16px; align-items:center; margin-bottom:22px}
   .pod-head img{width:88px; height:88px; border-radius:16px; flex:none; object-fit:cover; background:var(--panel)}
   .pod-head .pt{font-size:18px; font-weight:650; letter-spacing:-.01em}
@@ -153,21 +185,21 @@
       </div>
     </header>
 
-    <div class="tabs">
-      <button class="tab active" id="tabRadio" type="button">Radio</button>
-      <button class="tab" id="tabPodcasts" type="button">Podcasts</button>
-    </div>
-
     <div id="radioView">
       <div class="stations" id="stations"></div>
     </div>
 
     <div id="podcastView" hidden>
-      <div class="pod-head" id="podHead"></div>
-      <div class="episodes" id="episodes"></div>
+      <div id="podcastList"></div>
+      <div id="podcastDetail" hidden>
+        <button class="podback" id="podBack" type="button">‹ Podcasts</button>
+        <div class="pod-head" id="podHead"></div>
+        <div class="episodes" id="episodes"></div>
+      </div>
     </div>
   </div>
 
+  <div class="dock">
   <div class="player" id="player">
     <div class="seek" id="seek" hidden>
       <span class="t" id="curTime">0:00</span>
@@ -192,6 +224,17 @@
         <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8">
       </div>
     </div>
+  </div>
+  <nav class="bottomnav">
+    <button class="navitem active" id="navRadio" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><path d="M8.1 8.1a5.5 5.5 0 000 7.8M15.9 8.1a5.5 5.5 0 010 7.8M5.3 5.3a9.5 9.5 0 000 13.4M18.7 5.3a9.5 9.5 0 010 13.4"/></svg>
+      <span>Radio</span>
+    </button>
+    <button class="navitem" id="navPodcasts" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
+      <span>Podcasts</span>
+    </button>
+  </nav>
   </div>
 
   <audio id="audio"></audio>
@@ -441,15 +484,23 @@ if (last){
 }
 
 /* ---------- Podcasts ---------- */
-const FEED_URL = "https://www.rsi.ch/rete-tre/programmi/intrattenimento/the-funk-shop/?f=podcast-xml";
-// Static hosting can't read the feed directly (no CORS), so route through a
+// Podcasts you follow. Add more entries here to follow additional shows.
+const PODCASTS = [
+  { id:'funkshop', title:'The Funk Shop', author:'a cura di Bassi Maestro — RSI Rete Tre',
+    feed:'https://www.rsi.ch/rete-tre/programmi/intrattenimento/the-funk-shop/?f=podcast-xml',
+    img:'https://cleaver.cue.rsi.ch/public/rete-tre/programmi/intrattenimento/the-funk-shop/2027713-33hue1-audio_16x9-rete_tre_the_funk_shop.png/alternates/r1x1_3000/2027713-33hue1-audio_16x9-rete_tre_the_funk_shop.png' },
+];
+// Static hosting can't read the feeds directly (no CORS), so route through a
 // CORS proxy. Try each in order until one returns valid RSS.
 const PROXIES = [
   u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
   u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
 ];
+const podcastListEl = document.getElementById('podcastList');
+const podcastDetailEl = document.getElementById('podcastDetail');
 const podHead = document.getElementById('podHead');
 const episodesEl = document.getElementById('episodes');
+let currentPod = null;
 
 function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function stripHtml(html){ const d = document.createElement('div'); d.innerHTML = html || ''; return (d.textContent || '').trim(); }
@@ -531,26 +582,57 @@ function renderPodcast(data){
   refreshActive();
 }
 
-let podcastLoaded = false;
-async function loadPodcast(force){
-  if (podcastLoaded && !force) return;
+// Render the list of followed podcasts
+function renderPodcastList(){
+  podcastListEl.innerHTML = '';
+  PODCASTS.forEach(pod => {
+    const el = document.createElement('button');
+    el.className = 'podcard';
+    el.innerHTML = `
+      <div class="thumb"><span>🎙️</span>${pod.img ? `<img src="${esc(pod.img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+      <div class="meta">
+        <div class="name">${esc(pod.title)}</div>
+        <div class="desc">${esc(pod.author)}</div>
+      </div>
+      <div class="chev">›</div>`;
+    el.addEventListener('click', () => openPodcast(pod));
+    podcastListEl.appendChild(el);
+  });
+}
+
+function showPodcastList(){
+  podcastListEl.hidden = false;
+  podcastDetailEl.hidden = true;
+}
+
+function openPodcast(pod){
+  podcastListEl.hidden = true;
+  podcastDetailEl.hidden = false;
+  loadPodcast(pod);
+}
+
+async function loadPodcast(pod, force){
+  currentPod = pod;
+  const cacheKey = 'kugna.feed.' + pod.id;
   // Show cached feed instantly, then refresh live from the network (auto-update).
-  const cached = localStorage.getItem('kugna.feed');
-  if (cached && episodes.length === 0){ try { renderPodcast(JSON.parse(cached)); } catch(e){} }
-  if (episodes.length === 0) episodesEl.innerHTML = '<div class="pod-msg">Loading episodes…</div>';
+  const cached = localStorage.getItem(cacheKey);
+  let rendered = false;
+  if (cached){ try { renderPodcast(JSON.parse(cached)); rendered = true; } catch(e){} }
+  if (!rendered) episodesEl.innerHTML = '<div class="pod-msg">Loading episodes…</div>';
   try {
-    const data = parseFeed(await fetchFeed(FEED_URL));
-    localStorage.setItem('kugna.feed', JSON.stringify(data));
+    const data = parseFeed(await fetchFeed(pod.feed));
+    localStorage.setItem(cacheKey, JSON.stringify(data));
     renderPodcast(data);
-    podcastLoaded = true;
   } catch(e){
-    if (episodes.length === 0){
+    if (!rendered){
       episodesEl.innerHTML = '<div class="pod-msg">Couldn’t load episodes right now.<br><button type="button" id="retryPod">Try again</button></div>';
       const rb = document.getElementById('retryPod');
-      if (rb) rb.addEventListener('click', () => loadPodcast(true));
+      if (rb) rb.addEventListener('click', () => loadPodcast(pod, true));
     }
   }
 }
+
+document.getElementById('podBack').addEventListener('click', showPodcastList);
 
 function playEpisode(ep){
   if (mode === 'podcast' && currentEp && currentEp.guid === ep.guid){
@@ -572,22 +654,24 @@ function playEpisode(ep){
   refreshActive();
 }
 
-/* ---------- Tabs ---------- */
+/* ---------- Bottom nav (sections) ---------- */
 const appSub = document.getElementById('appSub');
-function showTab(tab){
-  const isPod = tab === 'podcasts';
-  document.getElementById('tabRadio').classList.toggle('active', !isPod);
-  document.getElementById('tabPodcasts').classList.toggle('active', isPod);
+const navRadio = document.getElementById('navRadio');
+const navPodcasts = document.getElementById('navPodcasts');
+function showSection(sec){
+  const isPod = sec === 'podcasts';
   document.getElementById('radioView').hidden = isPod;
   document.getElementById('podcastView').hidden = !isPod;
-  appSub.textContent = isPod ? 'The Funk Shop — RSI Rete Tre' : "Paolo's stations";
-  localStorage.setItem('kugna.tab', tab);
-  if (isPod) loadPodcast();
+  navRadio.classList.toggle('active', !isPod);
+  navPodcasts.classList.toggle('active', isPod);
+  appSub.textContent = isPod ? 'Podcasts you follow' : "Paolo's stations";
+  localStorage.setItem('kugna.tab', sec);
+  if (isPod){ renderPodcastList(); showPodcastList(); }
 }
-document.getElementById('tabRadio').addEventListener('click', () => showTab('radio'));
-document.getElementById('tabPodcasts').addEventListener('click', () => showTab('podcasts'));
+navRadio.addEventListener('click', () => showSection('radio'));
+navPodcasts.addEventListener('click', () => showSection('podcasts'));
 
-if (localStorage.getItem('kugna.tab') === 'podcasts') showTab('podcasts');
+if (localStorage.getItem('kugna.tab') === 'podcasts') showSection('podcasts');
 </script>
 </body>
 </html>
