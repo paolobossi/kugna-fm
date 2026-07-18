@@ -19,14 +19,9 @@
     padding:32px 16px 200px;
   }
   .app{width:100%; max-width:520px}
-  header{display:flex; align-items:center; gap:12px; margin-bottom:28px}
-  .logo{
-    width:40px; height:40px; border-radius:12px; flex:none;
-    background:linear-gradient(135deg,var(--accent),var(--accent-2));
-    display:grid; place-items:center; color:#06210f; font-size:22px;
-  }
-  h1{font-size:20px; font-weight:650; letter-spacing:-.02em}
-  .sub{font-size:13px; color:var(--muted)}
+  header{margin-bottom:22px}
+  h1{font-size:32px; font-weight:750; letter-spacing:-.03em}
+  .ep-sentinel{height:1px}
 
   .stations{display:flex; flex-direction:column; gap:10px}
   .station{
@@ -178,11 +173,7 @@
 <body>
   <div class="app">
     <header>
-      <div class="logo">📻</div>
-      <div>
-        <h1>Kugna FM</h1>
-        <div class="sub" id="appSub">Paolo's stations</div>
-      </div>
+      <h1 id="sectionTitle">Radio</h1>
     </header>
 
     <div id="radioView">
@@ -556,6 +547,42 @@ function parseFeed(xmlText){
   return { podTitle, podImg, podDesc, items };
 }
 
+// Episodes render lazily: a first batch (latest episodes) on open, then more
+// as the sentinel scrolls into view. Keeps a 100-item feed snappy.
+const EP_BATCH = 15;
+let epRendered = 0;
+let epObserver = null;
+const epSentinel = document.createElement('div');
+epSentinel.className = 'ep-sentinel';
+
+function makeEpisodeEl(ep){
+  const el = document.createElement('button');
+  el.className = 'episode';
+  el.dataset.guid = ep.guid;
+  el.innerHTML = `
+    <div class="thumb"><span>♪</span>${ep.img ? `<img src="${esc(ep.img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    <div class="ep-meta">
+      <div class="ep-title">${esc(ep.title)}</div>
+      <div class="ep-sub">${[ep.date, ep.duration].filter(Boolean).join(' · ')}</div>
+    </div>
+    <div class="bars"><span></span><span></span><span></span></div>`;
+  el.addEventListener('click', () => playEpisode(ep));
+  return el;
+}
+
+function renderMoreEpisodes(){
+  const next = episodes.slice(epRendered, epRendered + EP_BATCH);
+  const frag = document.createDocumentFragment();
+  next.forEach(ep => frag.appendChild(makeEpisodeEl(ep)));
+  episodesEl.insertBefore(frag, epSentinel);
+  epRendered += next.length;
+  refreshActive();
+  if (epRendered >= episodes.length){
+    if (epObserver) epObserver.disconnect();
+    epSentinel.hidden = true;
+  }
+}
+
 function renderPodcast(data){
   episodes = data.items;
   podHead.innerHTML = `
@@ -565,21 +592,16 @@ function renderPodcast(data){
       <div class="pd">${esc(data.podDesc)}</div>
     </div>`;
   episodesEl.innerHTML = '';
-  episodes.forEach(ep => {
-    const el = document.createElement('button');
-    el.className = 'episode';
-    el.dataset.guid = ep.guid;
-    el.innerHTML = `
-      <div class="thumb"><span>♪</span>${ep.img ? `<img src="${esc(ep.img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
-      <div class="ep-meta">
-        <div class="ep-title">${esc(ep.title)}</div>
-        <div class="ep-sub">${[ep.date, ep.duration].filter(Boolean).join(' · ')}</div>
-      </div>
-      <div class="bars"><span></span><span></span><span></span></div>`;
-    el.addEventListener('click', () => playEpisode(ep));
-    episodesEl.appendChild(el);
-  });
-  refreshActive();
+  epRendered = 0;
+  epSentinel.hidden = false;
+  episodesEl.appendChild(epSentinel);
+  if (epObserver) epObserver.disconnect();
+  epObserver = new IntersectionObserver(
+    ents => { if (ents.some(e => e.isIntersecting)) renderMoreEpisodes(); },
+    { rootMargin: '600px 0px' }
+  );
+  epObserver.observe(epSentinel);
+  renderMoreEpisodes();  // first batch = latest episodes
 }
 
 // Render the list of followed podcasts
@@ -655,7 +677,7 @@ function playEpisode(ep){
 }
 
 /* ---------- Bottom nav (sections) ---------- */
-const appSub = document.getElementById('appSub');
+const sectionTitle = document.getElementById('sectionTitle');
 const navRadio = document.getElementById('navRadio');
 const navPodcasts = document.getElementById('navPodcasts');
 function showSection(sec){
@@ -664,7 +686,7 @@ function showSection(sec){
   document.getElementById('podcastView').hidden = !isPod;
   navRadio.classList.toggle('active', !isPod);
   navPodcasts.classList.toggle('active', isPod);
-  appSub.textContent = isPod ? 'Podcasts you follow' : "Paolo's stations";
+  sectionTitle.textContent = isPod ? 'Podcasts' : 'Radio';
   localStorage.setItem('kugna.tab', sec);
   if (isPod){ renderPodcastList(); showPodcastList(); }
 }
