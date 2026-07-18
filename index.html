@@ -88,6 +88,13 @@
   }
   .play-btn:hover{transform:scale(1.06)} .play-btn:active{transform:scale(.96)}
   .play-btn:disabled{opacity:.4; cursor:default; transform:none; box-shadow:none}
+  .skip-btn{
+    width:38px; height:38px; border-radius:50%; border:none; flex:none;
+    background:transparent; color:var(--muted); cursor:pointer;
+    display:grid; place-items:center; transition:.15s;
+  }
+  .skip-btn:hover{background:var(--panel-2); color:var(--text)}
+  .skip-btn:active{transform:scale(.92)}
   .vol{display:flex; align-items:center; gap:8px; width:110px}
   .vol svg{flex:none; color:var(--muted)}
   input[type=range]{
@@ -115,7 +122,13 @@
 
   <div class="player" id="player">
     <div class="player-inner">
+      <button class="skip-btn" id="prevBtn" title="Previous station" aria-label="Previous station">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
       <button class="play-btn" id="playBtn" disabled>▶</button>
+      <button class="skip-btn" id="nextBtn" title="Next station" aria-label="Next station">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+      </button>
       <div class="np-cover" id="npCover"></div>
       <div class="np">
         <div class="name" id="npName">Pick a station</div>
@@ -283,6 +296,18 @@ playBtn.addEventListener('click', () => {
   if (!loaded){ selectStation(current); return; }  // load the restored station first
   if (audio.paused) audio.play(); else audio.pause();
 });
+
+// Skip to prev/next station in the list (wraps around, skips unavailable ones)
+function skip(dir){
+  const n = STATIONS.length;
+  let idx = current ? STATIONS.findIndex(s => s.id === current.id) : (dir > 0 ? -1 : 0);
+  for (let i = 0; i < n; i++){
+    idx = (idx + dir + n) % n;
+    if (STATIONS[idx].type !== 'unavailable'){ selectStation(STATIONS[idx]); return; }
+  }
+}
+document.getElementById('prevBtn').addEventListener('click', () => skip(-1));
+document.getElementById('nextBtn').addEventListener('click', () => skip(1));
 
 audio.addEventListener('playing', () => { playBtn.textContent='❚❚'; setStatus('● Live', true); refreshActive(); });
 audio.addEventListener('pause',   () => { playBtn.textContent='▶'; setStatus('Paused'); refreshActive(); });
