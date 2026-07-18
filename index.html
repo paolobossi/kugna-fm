@@ -226,13 +226,13 @@ function loadStream(st){
   if (st.type === 'hls'){
     if (window.Hls && Hls.isSupported()){
       hls = new Hls();
-      // Attach media first, load source once attached, and only start playback
-      // after the manifest is parsed — calling play() earlier races with MSE
-      // attachment and can stall the stream.
-      hls.attachMedia(audio);
+      // Register handlers BEFORE attachMedia — MEDIA_ATTACHED can fire during
+      // attach, and if the listener isn't set yet loadSource never runs and the
+      // stream stalls. Start playback only after the manifest is parsed.
       hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(st.url));
       hls.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(()=>{}));
       hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) setStatus('Stream unavailable'); });
+      hls.attachMedia(audio);
     } else {
       // Safari plays HLS natively
       audio.src = st.url;
