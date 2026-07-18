@@ -188,6 +188,7 @@ function setNpCover(st){
 }
 
 let current = null;   // station object
+let loaded = false;   // whether current's stream is actually loaded into <audio>
 let hls = null;
 
 // Build station list
@@ -255,8 +256,8 @@ function selectStation(st){
     refreshActive();
     return;
   }
-  if (current && current.id === st.id){
-    // toggle play/pause on the same station
+  if (loaded && current && current.id === st.id){
+    // same station AND already loaded → toggle play/pause
     if (audio.paused) audio.play(); else audio.pause();
     return;
   }
@@ -265,6 +266,7 @@ function selectStation(st){
   setNpCover(st);
   setStatus('Connecting…');
   loadStream(st);  // starts playback itself, at the right moment per stream type
+  loaded = true;
   playBtn.disabled = false;
   refreshActive();
   localStorage.setItem('radio.last', st.id);
@@ -272,6 +274,7 @@ function selectStation(st){
 
 playBtn.addEventListener('click', () => {
   if (!current) return;
+  if (!loaded){ selectStation(current); return; }  // load the restored station first
   if (audio.paused) audio.play(); else audio.pause();
 });
 
