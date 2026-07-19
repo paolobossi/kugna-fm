@@ -29,16 +29,8 @@
   .ep-sentinel{height:1px}
 
   /* Category filter pills */
-  .pills-row{display:flex; align-items:center; gap:8px; margin-bottom:16px}
-  .edit-toggle{
-    flex:none; padding:7px 13px; border-radius:999px; border:1px solid var(--border);
-    background:var(--panel); color:var(--muted); font:inherit; font-size:13px; font-weight:600;
-    cursor:pointer; white-space:nowrap; transition:.15s;
-  }
-  .edit-toggle:hover:not(.active){color:var(--text)}
-  .edit-toggle.active{background:var(--accent); color:#06210f; border-color:var(--accent)}
   .pills{
-    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; min-width:0; flex:1;
+    display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; padding-bottom:4px;
     scrollbar-width:none; -webkit-overflow-scrolling:touch;
   }
   .pills::-webkit-scrollbar{display:none}
@@ -78,32 +70,50 @@
     background:rgba(96,165,250,.16); color:#93c5fd; border:1px solid rgba(96,165,250,.4);
   }
   .desc{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .cat-chip{
-    flex:none; max-width:110px; padding:4px 9px; border-radius:8px; border:1px solid var(--border);
-    background:var(--panel-2); color:var(--muted); font:inherit; font-size:11px; font-weight:600;
-    cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:.15s;
+  .kebab{
+    flex:none; width:32px; height:32px; border-radius:8px; border:none; background:transparent;
+    color:var(--muted); cursor:pointer; display:grid; place-items:center; transition:.15s;
   }
-  .cat-chip:hover{color:var(--text); border-color:#3a465c}
-  .catmenu{
-    z-index:100; width:236px; max-height:340px; display:flex; flex-direction:column;
-    background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:8px;
-    box-shadow:0 14px 44px rgba(0,0,0,.55);
+  .kebab:hover{background:var(--panel-2); color:var(--text)}
+  /* Bottom sheet */
+  .sheet-backdrop{
+    position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.5);
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; transition:opacity .2s;
   }
-  .catmenu-input{
-    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--border);
-    background:var(--bg); color:var(--text); font:inherit; font-size:13px; outline:none; margin-bottom:6px;
+  .sheet-backdrop.show{opacity:1}
+  .sheet{
+    width:100%; max-width:520px; max-height:80vh; display:flex; flex-direction:column; gap:5px;
+    background:var(--panel); border-top:1px solid var(--border); border-radius:20px 20px 0 0;
+    padding:8px 12px calc(16px + env(safe-area-inset-bottom));
+    transform:translateY(100%); transition:transform .26s cubic-bezier(.32,.72,0,1);
   }
-  .catmenu-input:focus{border-color:var(--accent)}
-  .catmenu-list{overflow-y:auto; display:flex; flex-direction:column; gap:2px}
-  .catmenu-item{
-    text-align:left; padding:9px 11px; border-radius:9px; border:none; background:none;
-    color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis;
+  .sheet-backdrop.show .sheet{transform:translateY(0)}
+  .sheet-handle{width:40px; height:4px; border-radius:2px; background:var(--border); margin:6px auto 8px}
+  .sheet-head{padding:2px 8px 12px; text-align:center}
+  .sheet-title{font-size:16px; font-weight:650}
+  .sheet-sub{font-size:13px; color:var(--muted); margin-top:3px}
+  .sheet-item{
+    width:100%; text-align:left; padding:15px 16px; border:none; border-radius:12px; background:var(--panel-2);
+    color:var(--text); font:inherit; font-size:15px; font-weight:500; cursor:pointer; transition:.12s;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .catmenu-item:hover{background:var(--panel-2)}
-  .catmenu-item.current{color:var(--accent); font-weight:650}
-  .catmenu-item.current::after{content:' ✓'}
-  .catmenu-item.create{color:var(--accent); font-weight:600}
+  .sheet-item:hover{background:#252c3a}
+  .sheet-item.current{color:var(--accent)}
+  .sheet-item.current::after{content:' ✓'}
+  .sheet-item.create{color:var(--accent)}
+  .sheet-item.danger{color:#f87171}
+  .sheet-input{
+    width:100%; padding:13px 14px; border-radius:12px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font:inherit; font-size:15px; outline:none; margin-bottom:5px;
+  }
+  .sheet-input:focus{border-color:var(--accent)}
+  .sheet-list{overflow-y:auto; display:flex; flex-direction:column; gap:5px}
+  .sheet-cancel{
+    width:100%; text-align:center; padding:15px; border:none; border-radius:12px; margin-top:6px;
+    background:var(--panel-2); color:var(--text); font:inherit; font-size:15px; font-weight:650; cursor:pointer;
+  }
+  .sheet-cancel:hover{background:#252c3a}
   .bars{display:flex; align-items:flex-end; gap:2px; height:18px; width:18px; flex:none; opacity:0}
   .station.active .bars{opacity:1}
   .bars span{width:3px; background:var(--accent); border-radius:2px; height:30%}
@@ -230,10 +240,7 @@
     </header>
 
     <div id="radioView">
-      <div class="pills-row">
-        <div class="pills" id="pills"></div>
-        <button class="edit-toggle" id="editToggle" type="button">Edit</button>
-      </div>
+      <div class="pills" id="pills"></div>
       <div class="stations" id="stations"></div>
     </div>
 
@@ -372,18 +379,18 @@ const DEFAULT_CATS = {
   somaagent:'Eclectic', somagroove:'Eclectic',
 };
 const catOverrides = JSON.parse(localStorage.getItem('kugna.cats') || '{}');
+const deletedIds = new Set(JSON.parse(localStorage.getItem('kugna.deleted') || '[]'));
 let activeCat = 'All';
-let editMode = false;
 const pillsEl = document.getElementById('pills');
-const editToggle = document.getElementById('editToggle');
 
 function catOf(st){ return catOverrides[st.id] || DEFAULT_CATS[st.id] || 'Uncategorized'; }
+function liveStations(){ return STATIONS.filter(st => !deletedIds.has(st.id)); }
 function allCategories(){
   const out = [];
-  STATIONS.forEach(st => { const c = catOf(st); if (!out.includes(c)) out.push(c); });
+  liveStations().forEach(st => { const c = catOf(st); if (!out.includes(c)) out.push(c); });
   return out;
 }
-function visibleStations(){ return STATIONS.filter(st => activeCat === 'All' || catOf(st) === activeCat); }
+function visibleStations(){ return liveStations().filter(st => activeCat === 'All' || catOf(st) === activeCat); }
 
 function renderPills(){
   if (activeCat !== 'All' && !allCategories().includes(activeCat)) activeCat = 'All';
@@ -398,74 +405,114 @@ function renderPills(){
   });
 }
 
-// Category picker menu: choose an existing category or type a new one.
-let openMenu = null;
-function closeCatMenu(){
-  if (!openMenu) return;
-  openMenu.el.remove();
-  document.removeEventListener('click', openMenu.outside, true);
-  openMenu = null;
+/* ---------- Bottom sheets ---------- */
+let currentSheet = null;
+function closeSheet(){
+  if (!currentSheet) return;
+  const s = currentSheet; currentSheet = null;
+  s.classList.remove('show');
+  document.removeEventListener('keydown', s._onKey);
+  setTimeout(() => s.remove(), 240);
 }
+function openSheet(build){
+  closeSheet();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'sheet-backdrop';
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  backdrop.appendChild(sheet);
+  document.body.appendChild(backdrop);
+  build(sheet, closeSheet);
+  requestAnimationFrame(() => backdrop.classList.add('show'));
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeSheet(); });
+  backdrop._onKey = e => { if (e.key === 'Escape') closeSheet(); };
+  document.addEventListener('keydown', backdrop._onKey);
+  currentSheet = backdrop;
+}
+
 function assignCategory(st, val){
   val = (val || '').trim();
   if (!val) return;
   if (val === (DEFAULT_CATS[st.id] || 'Uncategorized')) delete catOverrides[st.id];
   else catOverrides[st.id] = val;
   localStorage.setItem('kugna.cats', JSON.stringify(catOverrides));
-  closeCatMenu();
   renderPills(); buildStations();
 }
-function openCatMenu(st, anchor){
-  closeCatMenu();
-  const cur = catOf(st);
-  const menu = document.createElement('div');
-  menu.className = 'catmenu';
-  menu.innerHTML = `<input class="catmenu-input" type="text" placeholder="Type or pick a category…"><div class="catmenu-list"></div>`;
-  document.body.appendChild(menu);
-  const input = menu.querySelector('.catmenu-input');
-  const list = menu.querySelector('.catmenu-list');
+function deleteStation(st){
+  deletedIds.add(st.id);
+  localStorage.setItem('kugna.deleted', JSON.stringify([...deletedIds]));
+  renderPills(); buildStations();
+}
 
-  function renderList(){
-    const typed = input.value.trim();
-    const q = typed.toLowerCase();
-    list.innerHTML = '';
-    if (typed && !allCategories().some(c => c.toLowerCase() === q)){
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'catmenu-item create';
-      b.textContent = `Create “${typed}”`;
-      b.addEventListener('click', () => assignCategory(st, typed));
-      list.appendChild(b);
-    }
-    allCategories().filter(c => !q || c.toLowerCase().includes(q)).forEach(c => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'catmenu-item' + (c === cur ? ' current' : '');
-      b.textContent = c;
-      b.addEventListener('click', () => assignCategory(st, c));
-      list.appendChild(b);
-    });
-  }
-  renderList();
-  input.addEventListener('input', renderList);
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter'){ e.preventDefault(); assignCategory(st, input.value); }
-    else if (e.key === 'Escape'){ closeCatMenu(); }
+// Main per-station action sheet (⋯)
+function stationSheet(st){
+  openSheet((sheet, close) => {
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">${esc(st.name)}</div>
+        <div class="sheet-sub">${esc(catOf(st))}</div>
+      </div>
+      <button class="sheet-item" data-a="cat">Add to category</button>
+      <button class="sheet-item danger" data-a="del">Delete radio</button>
+      <button class="sheet-cancel" data-a="cancel">Cancel</button>`;
+    sheet.querySelector('[data-a="cat"]').onclick = () => categorySheet(st);
+    sheet.querySelector('[data-a="del"]').onclick = () => confirmDeleteSheet(st);
+    sheet.querySelector('[data-a="cancel"]').onclick = close;
   });
+}
 
-  // Position near the chip, clamped to the viewport.
-  menu.style.position = 'fixed';
-  const r = anchor.getBoundingClientRect();
-  let left = Math.max(12, Math.min(r.left, window.innerWidth - menu.offsetWidth - 12));
-  let top = r.bottom + 6;
-  if (top + menu.offsetHeight > window.innerHeight - 12) top = Math.max(12, r.top - menu.offsetHeight - 6);
-  menu.style.left = left + 'px';
-  menu.style.top = top + 'px';
-  input.focus();
+// Category chooser sheet: pick an existing category or type a new one
+function categorySheet(st){
+  openSheet((sheet, close) => {
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="sheet-head"><div class="sheet-title">Add to category</div></div>
+      <input class="sheet-input" type="text" placeholder="Type a new category…">
+      <div class="sheet-list"></div>
+      <button class="sheet-cancel">Cancel</button>`;
+    const input = sheet.querySelector('.sheet-input');
+    const list = sheet.querySelector('.sheet-list');
+    const cur = catOf(st);
+    function render(){
+      const typed = input.value.trim(), q = typed.toLowerCase();
+      list.innerHTML = '';
+      if (typed && !allCategories().some(c => c.toLowerCase() === q)){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sheet-item create'; b.textContent = `Create “${typed}”`;
+        b.onclick = () => { assignCategory(st, typed); close(); };
+        list.appendChild(b);
+      }
+      allCategories().filter(c => !q || c.toLowerCase().includes(q)).forEach(c => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sheet-item' + (c === cur ? ' current' : ''); b.textContent = c;
+        b.onclick = () => { assignCategory(st, c); close(); };
+        list.appendChild(b);
+      });
+    }
+    render();
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && input.value.trim()){ e.preventDefault(); assignCategory(st, input.value); close(); }
+    });
+    sheet.querySelector('.sheet-cancel').onclick = close;
+  });
+}
 
-  const outside = e => { if (!menu.contains(e.target) && e.target !== anchor) closeCatMenu(); };
-  setTimeout(() => document.addEventListener('click', outside, true), 0);
-  openMenu = { el: menu, outside };
+// Delete confirmation sheet
+function confirmDeleteSheet(st){
+  openSheet((sheet, close) => {
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">Remove ${esc(st.name)}?</div>
+        <div class="sheet-sub">It will be removed from your radios.</div>
+      </div>
+      <button class="sheet-item danger" data-a="del">Delete radio</button>
+      <button class="sheet-cancel" data-a="cancel">Cancel</button>`;
+    sheet.querySelector('[data-a="del"]').onclick = () => { deleteStation(st); close(); };
+    sheet.querySelector('[data-a="cancel"]').onclick = close;
+  });
 }
 
 function buildStations(){
@@ -483,25 +530,19 @@ function buildStations(){
         <div class="name">${st.name}${st.tag ? ` <span class="tag">${st.tag}</span>` : ''}</div>
         <div class="desc">${st.desc}</div>
       </div>
-      ${editMode ? `<button class="cat-chip" type="button" title="Edit category">${esc(catOf(st))}</button>` : ''}
-      <div class="bars"><span></span><span></span><span></span></div>`;
-    el.addEventListener('click', e => { if (e.target.closest('.cat-chip, .cat-input')) return; selectStation(st); });
+      <div class="bars"><span></span><span></span><span></span></div>
+      <button class="kebab" type="button" aria-label="Options">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>`;
+    el.addEventListener('click', e => { if (e.target.closest('.kebab')) return; selectStation(st); });
     el.addEventListener('keydown', e => {
-      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cat-chip, .cat-input')){ e.preventDefault(); selectStation(st); }
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.kebab')){ e.preventDefault(); selectStation(st); }
     });
-    const chip = el.querySelector('.cat-chip');
-    if (chip) chip.addEventListener('click', e => { e.stopPropagation(); openCatMenu(st, chip); });
+    el.querySelector('.kebab').addEventListener('click', e => { e.stopPropagation(); stationSheet(st); });
     stationsEl.appendChild(el);
   });
   refreshActive();
 }
-
-editToggle.addEventListener('click', () => {
-  editMode = !editMode;
-  editToggle.textContent = editMode ? 'Done' : 'Edit';
-  editToggle.classList.toggle('active', editMode);
-  buildStations();
-});
 
 renderPills();
 buildStations();
