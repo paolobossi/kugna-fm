@@ -29,8 +29,16 @@
   .ep-sentinel{height:1px}
 
   /* Category filter pills */
+  .pills-row{display:flex; align-items:center; gap:8px; margin-bottom:16px}
+  .edit-toggle{
+    flex:none; padding:7px 13px; border-radius:999px; border:1px solid var(--border);
+    background:var(--panel); color:var(--muted); font:inherit; font-size:13px; font-weight:600;
+    cursor:pointer; white-space:nowrap; transition:.15s;
+  }
+  .edit-toggle:hover:not(.active){color:var(--text)}
+  .edit-toggle.active{background:var(--accent); color:#06210f; border-color:var(--accent)}
   .pills{
-    display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; padding-bottom:4px;
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; min-width:0; flex:1;
     scrollbar-width:none; -webkit-overflow-scrolling:touch;
   }
   .pills::-webkit-scrollbar{display:none}
@@ -206,7 +214,10 @@
     </header>
 
     <div id="radioView">
-      <div class="pills" id="pills"></div>
+      <div class="pills-row">
+        <div class="pills" id="pills"></div>
+        <button class="edit-toggle" id="editToggle" type="button">Edit</button>
+      </div>
       <div class="stations" id="stations"></div>
     </div>
 
@@ -346,7 +357,9 @@ const DEFAULT_CATS = {
 };
 const catOverrides = JSON.parse(localStorage.getItem('kugna.cats') || '{}');
 let activeCat = 'All';
+let editMode = false;
 const pillsEl = document.getElementById('pills');
+const editToggle = document.getElementById('editToggle');
 
 function catOf(st){ return catOverrides[st.id] || DEFAULT_CATS[st.id] || 'Uncategorized'; }
 function allCategories(){
@@ -410,17 +423,25 @@ function buildStations(){
         <div class="name">${st.name}${st.tag ? ` <span class="tag">${st.tag}</span>` : ''}</div>
         <div class="desc">${st.desc}</div>
       </div>
-      <button class="cat-chip" type="button" title="Edit category">${esc(catOf(st))}</button>
+      ${editMode ? `<button class="cat-chip" type="button" title="Edit category">${esc(catOf(st))}</button>` : ''}
       <div class="bars"><span></span><span></span><span></span></div>`;
     el.addEventListener('click', e => { if (e.target.closest('.cat-chip, .cat-input')) return; selectStation(st); });
     el.addEventListener('keydown', e => {
       if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cat-chip, .cat-input')){ e.preventDefault(); selectStation(st); }
     });
-    el.querySelector('.cat-chip').addEventListener('click', e => { e.stopPropagation(); editCategory(st, el); });
+    const chip = el.querySelector('.cat-chip');
+    if (chip) chip.addEventListener('click', e => { e.stopPropagation(); editCategory(st, el); });
     stationsEl.appendChild(el);
   });
   refreshActive();
 }
+
+editToggle.addEventListener('click', () => {
+  editMode = !editMode;
+  editToggle.textContent = editMode ? 'Done' : 'Edit';
+  editToggle.classList.toggle('active', editMode);
+  buildStations();
+});
 
 renderPills();
 buildStations();
