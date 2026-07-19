@@ -202,7 +202,7 @@
 <body>
   <div class="app">
     <header>
-      <h1 id="sectionTitle">Radio</h1>
+      <h1 id="sectionTitle">Radios</h1>
     </header>
 
     <div id="radioView">
@@ -249,7 +249,7 @@
   <nav class="bottomnav">
     <button class="navitem active" id="navRadio" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><path d="M8.1 8.1a5.5 5.5 0 000 7.8M15.9 8.1a5.5 5.5 0 010 7.8M5.3 5.3a9.5 9.5 0 000 13.4M18.7 5.3a9.5 9.5 0 010 13.4"/></svg>
-      <span>Radio</span>
+      <span>Radios</span>
     </button>
     <button class="navitem" id="navPodcasts" type="button">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
@@ -792,7 +792,7 @@ function showSection(sec){
   document.getElementById('podcastView').hidden = !isPod;
   navRadio.classList.toggle('active', !isPod);
   navPodcasts.classList.toggle('active', isPod);
-  sectionTitle.textContent = isPod ? 'Podcasts' : 'Radio';
+  sectionTitle.textContent = isPod ? 'Podcasts' : 'Radios';
   localStorage.setItem('kugna.tab', sec);
   if (isPod){ renderPodcastList(); showPodcastList(); }
 }
