@@ -84,10 +84,26 @@
     cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:.15s;
   }
   .cat-chip:hover{color:var(--text); border-color:#3a465c}
-  .cat-input{
-    flex:none; width:104px; padding:4px 8px; border-radius:8px; border:1px solid var(--accent);
-    background:var(--bg); color:var(--text); font:inherit; font-size:11px; outline:none;
+  .catmenu{
+    z-index:100; width:236px; max-height:340px; display:flex; flex-direction:column;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:8px;
+    box-shadow:0 14px 44px rgba(0,0,0,.55);
   }
+  .catmenu-input{
+    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font:inherit; font-size:13px; outline:none; margin-bottom:6px;
+  }
+  .catmenu-input:focus{border-color:var(--accent)}
+  .catmenu-list{overflow-y:auto; display:flex; flex-direction:column; gap:2px}
+  .catmenu-item{
+    text-align:left; padding:9px 11px; border-radius:9px; border:none; background:none;
+    color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .catmenu-item:hover{background:var(--panel-2)}
+  .catmenu-item.current{color:var(--accent); font-weight:650}
+  .catmenu-item.current::after{content:' ✓'}
+  .catmenu-item.create{color:var(--accent); font-weight:600}
   .bars{display:flex; align-items:flex-end; gap:2px; height:18px; width:18px; flex:none; opacity:0}
   .station.active .bars{opacity:1}
   .bars span{width:3px; background:var(--accent); border-radius:2px; height:30%}
@@ -353,7 +369,7 @@ const DEFAULT_CATS = {
   smoothjazz247:'Smooth Jazz', smoothjazzfl:'Smooth Jazz', smoothjazzpl:'Smooth Jazz', smoothgrooving:'Smooth Jazz',
   bluemarlin:'Ibiza', ibizasonica:'Ibiza',
   nts1:'Eclectic', nts2:'Eclectic', ntspoolside:'Eclectic',
-  somaagent:'Chillout', somagroove:'Chillout',
+  somaagent:'Eclectic', somagroove:'Eclectic',
 };
 const catOverrides = JSON.parse(localStorage.getItem('kugna.cats') || '{}');
 let activeCat = 'All';
@@ -382,30 +398,74 @@ function renderPills(){
   });
 }
 
-// Inline-edit a station's category; typing a new one creates a new pill.
-function editCategory(st, el){
-  const chip = el.querySelector('.cat-chip');
-  if (!chip) return;
-  const input = document.createElement('input');
-  input.className = 'cat-input';
-  input.type = 'text';
-  input.value = catOverrides[st.id] || DEFAULT_CATS[st.id] || '';
-  input.placeholder = 'Category';
-  chip.replaceWith(input);
-  input.focus(); input.select();
-  let done = false;
-  const commit = () => {
-    if (done) return; done = true;
-    const val = input.value.trim();
-    if (val) catOverrides[st.id] = val; else delete catOverrides[st.id];
-    localStorage.setItem('kugna.cats', JSON.stringify(catOverrides));
-    renderPills(); buildStations();
-  };
+// Category picker menu: choose an existing category or type a new one.
+let openMenu = null;
+function closeCatMenu(){
+  if (!openMenu) return;
+  openMenu.el.remove();
+  document.removeEventListener('click', openMenu.outside, true);
+  openMenu = null;
+}
+function assignCategory(st, val){
+  val = (val || '').trim();
+  if (!val) return;
+  if (val === (DEFAULT_CATS[st.id] || 'Uncategorized')) delete catOverrides[st.id];
+  else catOverrides[st.id] = val;
+  localStorage.setItem('kugna.cats', JSON.stringify(catOverrides));
+  closeCatMenu();
+  renderPills(); buildStations();
+}
+function openCatMenu(st, anchor){
+  closeCatMenu();
+  const cur = catOf(st);
+  const menu = document.createElement('div');
+  menu.className = 'catmenu';
+  menu.innerHTML = `<input class="catmenu-input" type="text" placeholder="Type or pick a category…"><div class="catmenu-list"></div>`;
+  document.body.appendChild(menu);
+  const input = menu.querySelector('.catmenu-input');
+  const list = menu.querySelector('.catmenu-list');
+
+  function renderList(){
+    const typed = input.value.trim();
+    const q = typed.toLowerCase();
+    list.innerHTML = '';
+    if (typed && !allCategories().some(c => c.toLowerCase() === q)){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'catmenu-item create';
+      b.textContent = `Create “${typed}”`;
+      b.addEventListener('click', () => assignCategory(st, typed));
+      list.appendChild(b);
+    }
+    allCategories().filter(c => !q || c.toLowerCase().includes(q)).forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'catmenu-item' + (c === cur ? ' current' : '');
+      b.textContent = c;
+      b.addEventListener('click', () => assignCategory(st, c));
+      list.appendChild(b);
+    });
+  }
+  renderList();
+  input.addEventListener('input', renderList);
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') input.blur();
-    else if (e.key === 'Escape'){ done = true; renderPills(); buildStations(); }
+    if (e.key === 'Enter'){ e.preventDefault(); assignCategory(st, input.value); }
+    else if (e.key === 'Escape'){ closeCatMenu(); }
   });
-  input.addEventListener('blur', commit);
+
+  // Position near the chip, clamped to the viewport.
+  menu.style.position = 'fixed';
+  const r = anchor.getBoundingClientRect();
+  let left = Math.max(12, Math.min(r.left, window.innerWidth - menu.offsetWidth - 12));
+  let top = r.bottom + 6;
+  if (top + menu.offsetHeight > window.innerHeight - 12) top = Math.max(12, r.top - menu.offsetHeight - 6);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  input.focus();
+
+  const outside = e => { if (!menu.contains(e.target) && e.target !== anchor) closeCatMenu(); };
+  setTimeout(() => document.addEventListener('click', outside, true), 0);
+  openMenu = { el: menu, outside };
 }
 
 function buildStations(){
@@ -430,7 +490,7 @@ function buildStations(){
       if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cat-chip, .cat-input')){ e.preventDefault(); selectStation(st); }
     });
     const chip = el.querySelector('.cat-chip');
-    if (chip) chip.addEventListener('click', e => { e.stopPropagation(); editCategory(st, el); });
+    if (chip) chip.addEventListener('click', e => { e.stopPropagation(); openCatMenu(st, chip); });
     stationsEl.appendChild(el);
   });
   refreshActive();
