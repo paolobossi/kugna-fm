@@ -28,6 +28,20 @@
   h1{font-size:32px; font-weight:750; letter-spacing:-.03em}
   .ep-sentinel{height:1px}
 
+  /* Category filter pills */
+  .pills{
+    display:flex; gap:8px; overflow-x:auto; margin-bottom:16px; padding-bottom:4px;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .pills::-webkit-scrollbar{display:none}
+  .pill{
+    flex:none; padding:7px 15px; border-radius:999px; border:1px solid var(--border);
+    background:var(--panel); color:var(--muted); font:inherit; font-size:13px; font-weight:600;
+    cursor:pointer; white-space:nowrap; transition:.15s;
+  }
+  .pill:hover:not(.active){color:var(--text)}
+  .pill.active{background:var(--accent); color:#06210f; border-color:var(--accent)}
+
   .stations{display:flex; flex-direction:column; gap:10px}
   .station{
     display:flex; align-items:center; gap:14px; padding:14px 16px;
@@ -56,6 +70,16 @@
     background:rgba(96,165,250,.16); color:#93c5fd; border:1px solid rgba(96,165,250,.4);
   }
   .desc{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .cat-chip{
+    flex:none; max-width:110px; padding:4px 9px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--muted); font:inherit; font-size:11px; font-weight:600;
+    cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:.15s;
+  }
+  .cat-chip:hover{color:var(--text); border-color:#3a465c}
+  .cat-input{
+    flex:none; width:104px; padding:4px 8px; border-radius:8px; border:1px solid var(--accent);
+    background:var(--bg); color:var(--text); font:inherit; font-size:11px; outline:none;
+  }
   .bars{display:flex; align-items:flex-end; gap:2px; height:18px; width:18px; flex:none; opacity:0}
   .station.active .bars{opacity:1}
   .bars span{width:3px; background:var(--accent); border-radius:2px; height:30%}
@@ -182,6 +206,7 @@
     </header>
 
     <div id="radioView">
+      <div class="pills" id="pills"></div>
       <div class="stations" id="stations"></div>
     </div>
 
@@ -310,22 +335,95 @@ const seekBar = document.getElementById('seekBar');
 const curTimeEl = document.getElementById('curTime');
 const durTimeEl = document.getElementById('durTime');
 
-// Build station list
-STATIONS.forEach(st => {
-  const el = document.createElement('button');
-  el.className = 'station';
-  el.dataset.id = st.id;
-  if (st.type === 'unavailable') el.classList.add('unavailable');
-  el.innerHTML = `
-    <div class="thumb"><span>${st.emoji}</span>${st.img ? `<img src="${st.img}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
-    <div class="meta">
-      <div class="name">${st.name}${st.tag ? ` <span class="tag">${st.tag}</span>` : ''}</div>
-      <div class="desc">${st.desc}</div>
-    </div>
-    <div class="bars"><span></span><span></span><span></span></div>`;
-  el.addEventListener('click', () => selectStation(st));
-  stationsEl.appendChild(el);
-});
+/* ---------- Categories ---------- */
+// Default category per station; the user can override any via the chip (saved).
+const DEFAULT_CATS = {
+  radio24:'Italian', deejay:'Italian', lifegate:'Italian',
+  smoothjazz247:'Smooth Jazz', smoothjazzfl:'Smooth Jazz', smoothjazzpl:'Smooth Jazz', smoothgrooving:'Smooth Jazz',
+  bluemarlin:'Ibiza', ibizasonica:'Ibiza',
+  nts1:'Eclectic', nts2:'Eclectic', ntspoolside:'Eclectic',
+  somaagent:'Chillout', somagroove:'Chillout',
+};
+const catOverrides = JSON.parse(localStorage.getItem('kugna.cats') || '{}');
+let activeCat = 'All';
+const pillsEl = document.getElementById('pills');
+
+function catOf(st){ return catOverrides[st.id] || DEFAULT_CATS[st.id] || 'Uncategorized'; }
+function allCategories(){
+  const out = [];
+  STATIONS.forEach(st => { const c = catOf(st); if (!out.includes(c)) out.push(c); });
+  return out;
+}
+function visibleStations(){ return STATIONS.filter(st => activeCat === 'All' || catOf(st) === activeCat); }
+
+function renderPills(){
+  if (activeCat !== 'All' && !allCategories().includes(activeCat)) activeCat = 'All';
+  pillsEl.innerHTML = '';
+  ['All', ...allCategories()].forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pill' + (c === activeCat ? ' active' : '');
+    b.textContent = c;
+    b.addEventListener('click', () => { activeCat = c; renderPills(); buildStations(); });
+    pillsEl.appendChild(b);
+  });
+}
+
+// Inline-edit a station's category; typing a new one creates a new pill.
+function editCategory(st, el){
+  const chip = el.querySelector('.cat-chip');
+  if (!chip) return;
+  const input = document.createElement('input');
+  input.className = 'cat-input';
+  input.type = 'text';
+  input.value = catOverrides[st.id] || DEFAULT_CATS[st.id] || '';
+  input.placeholder = 'Category';
+  chip.replaceWith(input);
+  input.focus(); input.select();
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const val = input.value.trim();
+    if (val) catOverrides[st.id] = val; else delete catOverrides[st.id];
+    localStorage.setItem('kugna.cats', JSON.stringify(catOverrides));
+    renderPills(); buildStations();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape'){ done = true; renderPills(); buildStations(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function buildStations(){
+  stationsEl.innerHTML = '';
+  visibleStations().forEach(st => {
+    const el = document.createElement('div');
+    el.className = 'station';
+    el.dataset.id = st.id;
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    if (st.type === 'unavailable') el.classList.add('unavailable');
+    el.innerHTML = `
+      <div class="thumb"><span>${st.emoji}</span>${st.img ? `<img src="${st.img}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+      <div class="meta">
+        <div class="name">${st.name}${st.tag ? ` <span class="tag">${st.tag}</span>` : ''}</div>
+        <div class="desc">${st.desc}</div>
+      </div>
+      <button class="cat-chip" type="button" title="Edit category">${esc(catOf(st))}</button>
+      <div class="bars"><span></span><span></span><span></span></div>`;
+    el.addEventListener('click', e => { if (e.target.closest('.cat-chip, .cat-input')) return; selectStation(st); });
+    el.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cat-chip, .cat-input')){ e.preventDefault(); selectStation(st); }
+    });
+    el.querySelector('.cat-chip').addEventListener('click', e => { e.stopPropagation(); editCategory(st, el); });
+    stationsEl.appendChild(el);
+  });
+  refreshActive();
+}
+
+renderPills();
+buildStations();
 
 function setStatus(text, live){
   npStatus.textContent = text;
@@ -419,11 +517,14 @@ function skip(dir){
     playEpisode(episodes[idx]);
     return;
   }
-  const n = STATIONS.length;
-  let idx = current ? STATIONS.findIndex(s => s.id === current.id) : (dir > 0 ? -1 : 0);
+  const list = visibleStations();
+  const n = list.length;
+  if (!n) return;
+  let idx = current ? list.findIndex(s => s.id === current.id) : (dir > 0 ? -1 : 0);
+  if (idx === -1) idx = (dir > 0 ? -1 : 0);
   for (let i = 0; i < n; i++){
     idx = (idx + dir + n) % n;
-    if (STATIONS[idx].type !== 'unavailable'){ selectStation(STATIONS[idx]); return; }
+    if (list[idx].type !== 'unavailable'){ selectStation(list[idx]); return; }
   }
 }
 document.getElementById('prevBtn').addEventListener('click', () => skip(-1));
