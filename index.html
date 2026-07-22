@@ -228,6 +228,14 @@
   .ep-title{font-size:14.5px; font-weight:600; color:#fff; line-height:1.3;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
   .ep-sub{font-size:12px; color:var(--muted); margin-top:4px}
+  .episode.played{opacity:.5}
+  .ep-new{
+    display:inline-block; font-size:10px; font-weight:700; letter-spacing:.03em; line-height:1;
+    padding:2px 6px; border-radius:5px; margin-right:7px; vertical-align:1px;
+    background:rgba(74,222,128,.16); color:var(--accent);
+  }
+  .ep-fav{flex:none; color:var(--accent); display:grid; place-items:center}
+  .ep-fav svg{width:15px; height:15px}
   .pod-msg{padding:28px 16px; text-align:center; color:var(--muted); font-size:14px; line-height:1.5}
   .pod-msg button{margin-top:12px; padding:8px 16px; border:1px solid var(--border); border-radius:9px;
     background:var(--panel-2); color:var(--text); font:inherit; font-size:13px; cursor:pointer}
@@ -262,13 +270,7 @@
       <span class="t" id="durTime">0:00</span>
     </div>
     <div class="player-inner">
-      <button class="skip-btn" id="prevBtn" title="Previous" aria-label="Previous">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-      </button>
       <button class="play-btn" id="playBtn" disabled>▶</button>
-      <button class="skip-btn" id="nextBtn" title="Next" aria-label="Next">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
-      </button>
       <div class="np-cover" id="npCover"></div>
       <div class="np">
         <div class="name" id="npName">Pick a station</div>
@@ -649,22 +651,26 @@ function skip(dir){
     if (list[idx].type !== 'unavailable'){ selectStation(list[idx]); return; }
   }
 }
-document.getElementById('prevBtn').addEventListener('click', () => skip(-1));
-document.getElementById('nextBtn').addEventListener('click', () => skip(1));
-
 audio.addEventListener('playing', () => {
   playBtn.textContent='❚❚';
   if (mode === 'podcast') setStatus(currentEp && currentEp.date ? currentEp.date : 'Playing');
   else setStatus('● Live', true);
   refreshActive();
 });
-audio.addEventListener('pause',   () => { playBtn.textContent='▶'; setStatus('Paused'); refreshActive(); });
+audio.addEventListener('pause',   () => { playBtn.textContent='▶'; setStatus('Paused'); saveCurrentPos(); refreshActive(); });
 audio.addEventListener('waiting', () => setStatus('Buffering…'));
 audio.addEventListener('error',   () => { if (mode === 'podcast' ? currentEp : current) setStatus(mode === 'podcast' ? 'Playback error' : 'Stream unavailable'); });
-audio.addEventListener('ended',   () => { if (mode === 'podcast') skip(1); });  // auto-advance to next episode
+audio.addEventListener('ended',   () => {
+  if (mode !== 'podcast' || !currentEp) return;
+  playedEps.add(currentEp.guid); savePlayed();      // finished → mark played
+  delete resumePos[currentEp.guid]; saveResume();
+  refreshEpisodeRow(currentEp);
+  skip(1);                                            // auto-advance to next episode
+});
 
 // Seek bar (podcast mode only)
 let seeking = false;
+let lastPosSave = 0;
 function fmtTime(sec){ if(!isFinite(sec)||sec<0) return '0:00'; const m=Math.floor(sec/60), s=Math.floor(sec%60); return m+':'+String(s).padStart(2,'0'); }
 audio.addEventListener('timeupdate', () => {
   if (mode !== 'podcast' || seeking) return;
@@ -672,6 +678,8 @@ audio.addEventListener('timeupdate', () => {
   seekBar.value = d ? (audio.currentTime / d * 1000) : 0;
   curTimeEl.textContent = fmtTime(audio.currentTime);
   durTimeEl.textContent = d ? fmtTime(d) : '0:00';
+  const now = Date.now();
+  if (now - lastPosSave > 5000){ saveCurrentPos(); lastPosSave = now; }
 });
 seekBar.addEventListener('input', () => { seeking = true; if (audio.duration) curTimeEl.textContent = fmtTime(seekBar.value/1000*audio.duration); });
 seekBar.addEventListener('change', () => { if (audio.duration) audio.currentTime = seekBar.value/1000*audio.duration; seeking = false; });
@@ -775,6 +783,36 @@ function parseFeed(xmlText){
   return { podTitle, podImg, podDesc, items };
 }
 
+/* ---------- Episode state: played / bookmarked / resume / new ---------- */
+const playedEps = new Set(JSON.parse(localStorage.getItem('kugna.played') || '[]'));
+const favEps    = new Set(JSON.parse(localStorage.getItem('kugna.fav') || '[]'));
+const resumePos = JSON.parse(localStorage.getItem('kugna.pos') || '{}');   // guid -> seconds
+const seenEps   = new Set(JSON.parse(localStorage.getItem('kugna.seen') || '[]'));
+const seenAtStart = new Set(seenEps);   // snapshot → "New since last visit"
+
+const savePlayed = () => localStorage.setItem('kugna.played', JSON.stringify([...playedEps]));
+const saveFav    = () => localStorage.setItem('kugna.fav', JSON.stringify([...favEps]));
+const saveResume = () => localStorage.setItem('kugna.pos', JSON.stringify(resumePos));
+function markSeen(items){ items.forEach(ep => seenEps.add(ep.guid)); localStorage.setItem('kugna.seen', JSON.stringify([...seenEps])); }
+// New = appeared since your last visit (skip on the very first visit, when
+// nothing has been seen yet, to avoid flagging the whole back catalogue).
+function isNew(ep){ return seenAtStart.size > 0 && !seenAtStart.has(ep.guid) && !playedEps.has(ep.guid); }
+function findEpisodeEl(guid){ return [...episodesEl.querySelectorAll('.episode')].find(e => e.dataset.guid === guid); }
+function refreshEpisodeRow(ep){ const el = findEpisodeEl(ep.guid); if (el) el.replaceWith(makeEpisodeEl(ep)); refreshActive(); }
+
+function togglePlayed(ep){
+  if (playedEps.has(ep.guid)) playedEps.delete(ep.guid);
+  else { playedEps.add(ep.guid); delete resumePos[ep.guid]; saveResume(); }
+  savePlayed(); refreshEpisodeRow(ep);
+}
+function toggleFav(ep){
+  if (favEps.has(ep.guid)) favEps.delete(ep.guid); else favEps.add(ep.guid);
+  saveFav(); refreshEpisodeRow(ep);
+}
+
+const BOOKMARK_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h12a1 1 0 011 1v16l-7-4-7 4V5a1 1 0 011-1z"/></svg>';
+const DOTS_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+
 // Episodes render lazily: a first batch (latest episodes) on open, then more
 // as the sentinel scrolls into view. Keeps a 100-item feed snappy.
 const EP_BATCH = 15;
@@ -784,18 +822,53 @@ const epSentinel = document.createElement('div');
 epSentinel.className = 'ep-sentinel';
 
 function makeEpisodeEl(ep){
-  const el = document.createElement('button');
+  const el = document.createElement('div');
   el.className = 'episode';
   el.dataset.guid = ep.guid;
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+  if (playedEps.has(ep.guid)) el.classList.add('played');
+  const sub = [ep.date, ep.duration].filter(Boolean).join(' · ');
   el.innerHTML = `
     <div class="thumb"><span>♪</span>${ep.img ? `<img src="${esc(ep.img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
     <div class="ep-meta">
       <div class="ep-title">${esc(ep.title)}</div>
-      <div class="ep-sub">${[ep.date, ep.duration].filter(Boolean).join(' · ')}</div>
+      <div class="ep-sub">${isNew(ep) ? '<span class="ep-new">New</span>' : ''}${esc(sub)}</div>
     </div>
-    <div class="bars"><span></span><span></span><span></span></div>`;
-  el.addEventListener('click', () => playEpisode(ep));
+    ${favEps.has(ep.guid) ? `<span class="ep-fav">${BOOKMARK_SVG}</span>` : ''}
+    <div class="bars"><span></span><span></span><span></span></div>
+    <button class="kebab" type="button" aria-label="Options">${DOTS_SVG}</button>`;
+  el.addEventListener('click', e => { if (e.target.closest('.kebab')) return; playEpisode(ep); });
+  el.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.kebab')){ e.preventDefault(); playEpisode(ep); }
+  });
+  el.querySelector('.kebab').addEventListener('click', e => { e.stopPropagation(); episodeSheet(ep); });
   return el;
+}
+
+// Per-episode action sheet (⋯)
+function episodeSheet(ep){
+  openSheet((sheet, close) => {
+    const played = playedEps.has(ep.guid);
+    const fav = favEps.has(ep.guid);
+    const hasResume = (resumePos[ep.guid] || 0) > 5 && !played;
+    sheet.innerHTML = `
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">${esc(ep.title)}</div>
+        <div class="sheet-sub">${esc([ep.date, ep.duration].filter(Boolean).join(' · '))}</div>
+      </div>
+      ${hasResume ? `<button class="sheet-item" data-a="resume">Resume at ${fmtTime(resumePos[ep.guid])}</button><button class="sheet-item" data-a="restart">Play from beginning</button>` : ''}
+      <button class="sheet-item" data-a="played">${played ? 'Mark as unplayed' : 'Mark as played'}</button>
+      <button class="sheet-item" data-a="fav">${fav ? 'Remove bookmark' : 'Bookmark'}</button>
+      <button class="sheet-cancel" data-a="cancel">Cancel</button>`;
+    const on = (a, fn) => { const b = sheet.querySelector(`[data-a="${a}"]`); if (b) b.onclick = fn; };
+    on('resume', () => { playEpisode(ep); close(); });
+    on('restart', () => { delete resumePos[ep.guid]; saveResume(); playEpisode(ep); close(); });
+    on('played', () => { togglePlayed(ep); close(); });
+    on('fav', () => { toggleFav(ep); close(); });
+    on('cancel', close);
+  });
 }
 
 function renderMoreEpisodes(){
@@ -830,6 +903,7 @@ function renderPodcast(data){
   );
   epObserver.observe(epSentinel);
   renderMoreEpisodes();  // first batch = latest episodes
+  markSeen(data.items);  // so these aren't flagged "New" on the next visit
 }
 
 // Render the list of followed podcasts
@@ -889,6 +963,8 @@ function playEpisode(ep){
     if (audio.paused) audio.play(); else audio.pause();
     return;
   }
+  // Save the outgoing episode's position before switching.
+  saveCurrentPos();
   mode = 'podcast';
   currentEp = ep;
   if (hls){ hls.destroy(); hls = null; }
@@ -900,8 +976,23 @@ function playEpisode(ep){
   seekBar.value = 0; curTimeEl.textContent = '0:00'; durTimeEl.textContent = '0:00';
   playBtn.disabled = false;
   audio.src = ep.audio;
+  // Resume where we left off, if any.
+  const resume = resumePos[ep.guid] || 0;
+  if (resume > 5){
+    const seek = () => { try { audio.currentTime = resume; } catch(e){} };
+    audio.addEventListener('loadedmetadata', seek, { once: true });
+  }
   audio.play().catch(()=>{});
   refreshActive();
+}
+
+// Persist the current episode's playback position (skip if finished/near end).
+function saveCurrentPos(){
+  if (mode !== 'podcast' || !currentEp) return;
+  const t = audio.currentTime, d = audio.duration || 0;
+  if (t > 5 && (!d || t < d - 10) && !playedEps.has(currentEp.guid)){
+    resumePos[currentEp.guid] = t; saveResume();
+  }
 }
 
 /* ---------- Bottom nav (sections) ---------- */
